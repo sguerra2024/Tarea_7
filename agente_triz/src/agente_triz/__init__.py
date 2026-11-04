@@ -2,12 +2,20 @@
 
 from .agent import AgenteAnalista, AgenteTRIZ, calcular_estadisticas
 from .conocimiento import BaseConocimiento
-from .dialogo import construir_prompt_solucion, mostrar_dialogo_solucion
 from .inspiracion import (
     agregar_referencia_inspiracion,
     cargar_banco_inspiracion,
     filtrar_banco_por_vias,
 )
+
+
+def __getattr__(name):
+    if name in {"construir_prompt_solucion", "mostrar_dialogo_solucion"}:
+        from . import dialogo
+
+        return getattr(dialogo, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "AgenteAnalista",

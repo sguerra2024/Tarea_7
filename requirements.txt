@@ -1,4 +1,6 @@
 pandas
+python-dotenv
  plotly_express
- streamlit
+ streamlit>=1.50,<2
+ openai>=1.66.0
  

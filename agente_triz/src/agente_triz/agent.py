@@ -48,6 +48,12 @@ def calcular_estadisticas(datos, decimales=2):
 class AgenteTRIZ:
     """Agente de resolución de problemas que consulta OpenRouter."""
 
+    GENERAL_SYSTEM_PROMPT = """Eres un asistente de inteligencia artificial útil,
+claro y honesto. Responde a la conversación de forma directa y natural.
+Usa el contexto de los mensajes anteriores cuando sea pertinente. Si falta
+información importante, pregunta antes de asumir. Distingue los hechos de las
+opiniones y no inventes datos."""
+
     SYSTEM_PROMPT = """Eres un agente especializado en resolución sistemática de problemas,
 análisis de datos y toma de decisiones. Cuando el contexto incluya teoría TRIZ,
 úsala como referencia y explica cómo se relaciona con el problema.
@@ -148,6 +154,39 @@ INSTRUCCIONES:
             return "\n".join(textos).strip()
         except Exception as exc:
             raise RuntimeError(f"Error al consultar agente TRIZ: {exc}") from exc
+
+    def conversar(self, mensajes):
+        """Mantiene una conversación general, sin instrucciones ni contexto TRIZ."""
+        if not mensajes:
+            raise ValueError("La conversación debe incluir al menos un mensaje.")
+        if any(
+            not isinstance(mensaje, dict)
+            or mensaje.get("role") not in {"user", "assistant"}
+            or not isinstance(mensaje.get("content"), str)
+            or not mensaje["content"].strip()
+            for mensaje in mensajes
+        ):
+            raise ValueError(
+                "Cada mensaje debe tener un rol user o assistant y contenido de texto."
+            )
+        try:
+            respuesta = self.cliente.chat.completions.create(
+                model=self.modelo,
+                max_tokens=1024,
+                messages=[
+                    {"role": "system", "content": self.GENERAL_SYSTEM_PROMPT},
+                    *mensajes,
+                ],
+            )
+            textos = []
+            for opcion in respuesta.choices or []:
+                mensaje = getattr(opcion, "message", None)
+                texto = getattr(mensaje, "content", None) if mensaje else None
+                if texto:
+                    textos.append(texto)
+            return "\n".join(textos).strip()
+        except Exception as exc:
+            raise RuntimeError(f"Error al consultar el agente IA: {exc}") from exc
 
     def analizar_sistema(self, descripcion_cambio, impacto_estimado=None):
         contexto = f"Cambio solicitado: {descripcion_cambio}"
