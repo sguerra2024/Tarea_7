@@ -1,6 +1,7 @@
 """Diálogo de escritorio para enfocar un problema y explorar vías TRIZ."""
 
 from queue import Empty, Queue
+from sqlite3 import Error as SQLiteError
 from threading import Thread
 
 from .inspiracion import (
@@ -85,6 +86,7 @@ def mostrar_dialogo_solucion(agente, parent=None, ruta_banco=None):
         ) from exc
 
     from tkinter.scrolledtext import ScrolledText
+    from .exportacion import crear_menu_exportacion
 
     banco = cargar_banco_inspiracion(ruta_banco)
     propia = parent is None
@@ -94,30 +96,48 @@ def mostrar_dialogo_solucion(agente, parent=None, ruta_banco=None):
 
     dialogo = tk.Toplevel(root)
     dialogo.title("Agente TRIZ — enfoque y vías de solución")
-    dialogo.geometry("900x900")
-    dialogo.minsize(760, 720)
-    dialogo.transient(root)
+    ancho = min(800, dialogo.winfo_screenwidth() - 40)
+    alto = min(620, dialogo.winfo_screenheight() - 100)
+    dialogo.geometry(f"{ancho}x{alto}")
+    dialogo.minsize(min(480, ancho), min(340, alto))
+    if not propia:
+        dialogo.transient(root)
 
-    contenedor = ttk.Frame(dialogo, padding=14)
-    contenedor.pack(fill="both", expand=True)
+    pie = ttk.Frame(dialogo, padding=(10, 4))
+    pie.pack(side="bottom", fill="x")
+    cuerpo = ttk.Frame(dialogo)
+    cuerpo.pack(fill="both", expand=True)
+    visor = tk.Canvas(cuerpo, highlightthickness=0, borderwidth=0)
+    barra = ttk.Scrollbar(cuerpo, orient="vertical", command=visor.yview)
+    visor.configure(yscrollcommand=barra.set)
+    barra.pack(side="right", fill="y")
+    visor.pack(side="left", fill="both", expand=True)
+    contenedor = ttk.Frame(visor, padding=(10, 6))
+    panel = visor.create_window(0, 0, window=contenedor, anchor="nw")
     contenedor.columnconfigure(0, weight=1)
     contenedor.rowconfigure(2, weight=1)
+
+    def ajustar_contenido(event):
+        visor.itemconfigure(panel, width=event.width)
+        for etiqueta in etiquetas_ajustables:
+            etiqueta.configure(wraplength=max(1, event.width - 44))
 
     ttk.Label(
         contenedor,
         text="1. Enfoca el problema",
         font=("", 11, "bold"),
     ).grid(row=0, column=0, sticky="w")
-    ttk.Label(
+    instrucciones = ttk.Label(
         contenedor,
         text=(
             "Describe el efecto, la función afectada, el cambio esperado y "
             "las restricciones conocidas."
         ),
-        wraplength=760,
-    ).grid(row=1, column=0, sticky="w", pady=(2, 5))
-    problema = ScrolledText(contenedor, height=5, wrap="word")
-    problema.grid(row=2, column=0, sticky="nsew", pady=(0, 10))
+        wraplength=ancho - 44,
+    )
+    instrucciones.grid(row=1, column=0, sticky="w", pady=(1, 3))
+    problema = ScrolledText(contenedor, height=3, width=1, wrap="word")
+    problema.grid(row=2, column=0, sticky="nsew", pady=(0, 6))
 
     ttk.Label(
         contenedor,
@@ -136,7 +156,7 @@ def mostrar_dialogo_solucion(agente, parent=None, ruta_banco=None):
             text=descripcion,
             variable=variables[clave],
             command=lambda: actualizar_enlaces(),
-        ).grid(row=fila, column=0, sticky="w", pady=2)
+        ).grid(row=fila, column=0, sticky="w")
 
     fila_principios = 4 + len(VIAS_SOLUCION)
     ttk.Label(
@@ -157,7 +177,7 @@ def mostrar_dialogo_solucion(agente, parent=None, ruta_banco=None):
     principios_activos = tk.Listbox(
         filtro_frame,
         selectmode="extended",
-        height=5,
+        height=3,
         exportselection=False,
     )
     principios_scroll = ttk.Scrollbar(
@@ -172,7 +192,7 @@ def mostrar_dialogo_solucion(agente, parent=None, ruta_banco=None):
         filtro_frame,
         text="Selecciona un principio para consultar su descripción.",
         justify="left",
-        wraplength=760,
+        wraplength=ancho - 44,
     )
     detalle_principios.grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 0))
 
@@ -204,15 +224,21 @@ def mostrar_dialogo_solucion(agente, parent=None, ruta_banco=None):
         text="4. Enlaces del banco para las vías y principios activos",
         font=("", 10, "bold"),
     ).grid(row=fila_enlaces, column=0, sticky="w", pady=(4, 2))
-    ttk.Label(
+    aviso_enlaces = ttk.Label(
         contenedor,
         text="Los enlaces se muestran como referencias; no se abren ni verifican automáticamente.",
-        wraplength=760,
-    ).grid(row=fila_enlaces + 1, column=0, sticky="w", pady=(0, 4))
-    enlaces = ScrolledText(
-        contenedor, height=4, wrap="word", state="disabled"
+        wraplength=ancho - 44,
     )
-    enlaces.grid(row=fila_enlaces + 2, column=0, sticky="nsew", pady=(0, 8))
+    aviso_enlaces.grid(row=fila_enlaces + 1, column=0, sticky="w", pady=(0, 3))
+    etiquetas_ajustables = (instrucciones, detalle_principios, aviso_enlaces)
+    visor.bind("<Configure>", ajustar_contenido)
+    contenedor.bind(
+        "<Configure>", lambda _: visor.configure(scrollregion=visor.bbox(panel))
+    )
+    enlaces = ScrolledText(
+        contenedor, height=2, width=1, wrap="word", state="disabled"
+    )
+    enlaces.grid(row=fila_enlaces + 2, column=0, sticky="nsew", pady=(0, 4))
 
     fila_resultado = fila_enlaces + 3
     ttk.Label(
@@ -221,15 +247,15 @@ def mostrar_dialogo_solucion(agente, parent=None, ruta_banco=None):
         font=("", 10, "bold"),
     ).grid(row=fila_resultado, column=0, sticky="w", pady=(10, 4))
     contenedor.rowconfigure(fila_resultado + 1, weight=1)
-    resultado = ScrolledText(contenedor, height=6, wrap="word", state="disabled")
+    resultado = ScrolledText(
+        contenedor, height=4, width=1, wrap="word", state="disabled"
+    )
     resultado.grid(row=fila_resultado + 1, column=0, sticky="nsew")
 
     estado = tk.StringVar(value="Listo")
-    ttk.Label(contenedor, textvariable=estado).grid(
-        row=fila_resultado + 2, column=0, sticky="w", pady=(6, 0)
-    )
-    acciones = ttk.Frame(contenedor)
-    acciones.grid(row=fila_resultado + 3, column=0, sticky="e", pady=(8, 0))
+    ttk.Label(pie, textvariable=estado).pack(anchor="w")
+    acciones = ttk.Frame(pie)
+    acciones.pack(anchor="e", pady=(3, 0))
     respuesta_final = {"texto": None}
     recursos_filtrados = []
     resultados_worker = Queue()
@@ -311,14 +337,22 @@ def mostrar_dialogo_solucion(agente, parent=None, ruta_banco=None):
             messagebox.showwarning("Información requerida", str(exc), parent=dialogo)
             return
 
+        try:
+            pregunta_completa = agente.preparar_consulta(prompt)
+        except SQLiteError as exc:
+            estado.set("No se pudo generar el análisis")
+            poner_resultado(f"Error al preparar el contexto del agente:\n{exc}")
+            return
+
         boton_consultar.configure(state="disabled")
+        boton_exportar.configure(state="disabled")
         estado.set("Generando alternativas…")
         poner_resultado("")
 
         def ejecutar_consulta():
             try:
-                resultados_worker.put(("ok", agente.consultar(prompt)))
-            except Exception as exc:
+                resultados_worker.put(("ok", agente.enviar_consulta(pregunta_completa)))
+            except RuntimeError as exc:
                 resultados_worker.put(("error", str(exc)))
 
         Thread(target=ejecutar_consulta, daemon=True).start()
@@ -418,7 +452,11 @@ def mostrar_dialogo_solucion(agente, parent=None, ruta_banco=None):
         if tipo == "ok":
             respuesta_final["texto"] = contenido
             poner_resultado(contenido)
-            estado.set("Análisis listo")
+            if contenido.strip():
+                boton_exportar.configure(state="normal")
+                estado.set("Análisis listo")
+            else:
+                estado.set("El agente no devolvió un análisis")
         else:
             estado.set("No se pudo generar el análisis")
             poner_resultado(f"Error al consultar el agente:\n{contenido}")
@@ -444,6 +482,8 @@ def mostrar_dialogo_solucion(agente, parent=None, ruta_banco=None):
         text="Agregar enlace",
         command=abrir_carga_enlace,
     ).pack(side="left", padx=(0, 8))
+    boton_exportar = crear_menu_exportacion(acciones, lambda: respuesta_final["texto"])
+    boton_exportar.pack(side="left", padx=(0, 8))
     ttk.Button(acciones, text="Cerrar", command=cerrar).pack(side="left")
     dialogo.protocol("WM_DELETE_WINDOW", cerrar)
     actualizar_enlaces()

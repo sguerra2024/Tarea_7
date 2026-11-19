@@ -131,10 +131,16 @@ como lista de identificadores en cada entrada. Los identificadores del
 catálogo se corresponden con los nombres mostrados en la ventana. Al filtrar,
 los principios activos restringen los recursos de la vía 4; las referencias
 de otras vías seleccionadas siguen apareciendo. Los recursos filtrados y sus
-notas se incluyen como contexto al pedir el análisis. El diálogo genera el
-análisis en segundo plano y no abre, descarga ni verifica los enlaces. Para
+notas se incluyen como contexto al pedir el análisis. El diálogo prepara
+el contexto SQLite en el hilo de la ventana y consulta OpenRouter en segundo
+plano. No abre, descarga ni verifica los enlaces. Para
 integrarlo en una ventana Tkinter existente, pasa la raíz mediante `parent`;
 la función devuelve el análisis o `None` si se cierra antes de generarlo.
+
+En pantallas pequeñas, usa la barra vertical del formulario. Los botones
+permanecen visibles al pie. Tras obtener una respuesta, usa **Exportar
+análisis** para guardar el texto en **PDF (.pdf)**, **Word (.docx)** o
+**Excel (.xlsx)** sin volver a consultar OpenRouter.
 
 ## Base de conocimiento
 

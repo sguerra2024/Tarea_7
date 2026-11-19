@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from typing import Optional
 
 try:
     import pandas as pd
@@ -125,17 +126,26 @@ INSTRUCCIONES:
 
     def consultar(self, pregunta, contexto_adicional=None):
         """Consulta al modelo, agregando capítulos relevantes si están disponibles."""
+        return self.enviar_consulta(self.preparar_consulta(pregunta, contexto_adicional))
+
+    def preparar_consulta(
+        self, pregunta: str, contexto_adicional: Optional[str] = None
+    ) -> str:
+        """Prepara el mensaje en el hilo propietario de la conexión SQLite."""
         contexto_teoria = ""
         if self.conocimiento is not None:
             contexto_teoria = self.conocimiento.formatear_contexto(pregunta)
         partes = [
             contexto for contexto in (contexto_teoria, contexto_adicional) if contexto
         ]
-        pregunta_completa = (
+        return (
             "\n\n".join(partes) + f"\n\nPregunta: {pregunta}"
             if partes
             else pregunta
         )
+
+    def enviar_consulta(self, pregunta_completa: str) -> str:
+        """Envía un mensaje preparado sin acceder a la base de conocimiento."""
         try:
             respuesta = self.cliente.chat.completions.create(
                 model=self.modelo,
