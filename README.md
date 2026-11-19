@@ -1,20 +1,30 @@
 Esta es una aplicacion WEB, que explora la estadistica de vehiculos en EU
 Se presenta un Histograma y grafico de dispersion con la frecuencias de odometros, se observa una posible normalidad en los datos
 
-## Agente TRIZ
+## Agente TRIZ de escritorio (versión de AGROMEJORA_DATA)
 
-El directorio [agente_triz](agente_triz/README.md) contiene un agente de
-resolucion de problemas independiente de la aplicacion web de vehiculos.
-Incluye su propio [requirements.txt](agente_triz/requirements.txt).
+La carpeta [`escritorio`](escritorio/) contiene la misma edición Tkinter que
+ejecuta el acceso directo de AGROMEJORA_DATA, copiada de la revisión
+`6f0e6139eea4d0be04f38b61e4c7735303a4bd3e`. Incluye recomendaciones Lean
+Production y exportación del análisis en PDF, Word y Excel.
+
+Desde la raíz de Tarea_7, con Python y Tkinter disponibles:
 
 ```powershell
-cd agente_triz
-python -m pip install -r requirements.txt
-python launch.py
+python -m pip install .\escritorio python-dotenv
+python .\iniciar_agente_triz_escritorio.py
 ```
 
-Requiere Python 3.9 o superior, Tkinter y la variable `OPENROUTER_API_KEY`.
-Consulta su README para configurar la clave sin guardarla en el codigo.
+El lanzador usa el código de `escritorio` de este repositorio y carga el `.env`
+local de Tarea_7, si existe. Configura `OPENROUTER_API_KEY` (y opcionalmente
+`OPENROUTER_MODEL`) en ese archivo o en el entorno. No compartas tu clave.
+Este lanzador no inicia Streamlit ni necesita una copia de AGROMEJORA_DATA.
+
+## Agente TRIZ integrado con Tarea_7
+
+El directorio [agente_triz](agente_triz/README.md) contiene el paquete que usa
+la aplicación web de Tarea_7, con sus extensiones de conversación y matriz.
+Incluye su propio [requirements.txt](agente_triz/requirements.txt).
 La matriz clasica de contradicciones TRIZ se encuentra en
 `agente_triz/src/agente_triz/data/matriz_contradicciones_triz.json`.
 Incluye los 39 parametros en espanol, los 1,482 pares mejorar/perjudicar y
