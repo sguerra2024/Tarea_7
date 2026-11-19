@@ -1,8 +1,11 @@
+from io import BytesIO
 from pathlib import Path
 import sys
 from types import SimpleNamespace
 from unittest.mock import patch
+from zipfile import ZipFile
 
+import pytest
 from streamlit.testing.v1 import AppTest
 
 APP = Path(__file__).resolve().parents[1] / "app.py"
@@ -68,7 +71,8 @@ def test_dialogo_muestra_tipos_y_cuatro_vias():
         "Mejorar algo pero: Empeorar el sistema en otro punto",
         "Otro problema",
     ]
-    assert len(app.checkbox) == 4
+    assert sum(item.key.startswith("via_") for item in app.checkbox) == 4
+    assert not app.checkbox(key="incluir_lean_triz").value
     assert len(app.selectbox[1].options) == 39
     assert len(app.selectbox[2].options) == 39
 
@@ -176,6 +180,7 @@ def test_guardar_y_reabrir_conserva_seleccion():
         "tipo": "Gastos y ahorro",
         "descripcion": "Reducir costos sin bajar la calidad",
         "vias": ["contradicciones"],
+        "incluir_lean": False,
         "accion_mejorar": "",
         "parametro_mejorar": 1,
         "parametro_perjudicado": 2,
@@ -252,6 +257,7 @@ def test_generar_analisis_envia_problema_y_vias_y_muestra_respuesta():
     assert "15 Dinamicidad" in prompt
     assert "34 Descartar y recuperar" in prompt
     assert "Haga que las características de un objeto" in prompt
+    assert "recomendaciones de Lean Production" not in prompt
     assert app.session_state["analisis_triz"] == "Alternativa TRIZ para validar."
     assert app.session_state["agente_triz_cerrado"]
     assert any("Alternativa TRIZ para validar." in item.value for item in app.markdown)
@@ -263,6 +269,69 @@ def test_error_del_agente_se_muestra_y_se_cierra():
     assert any("error simulado" in item.value for item in app.error)
     assert app.session_state["agente_triz_cerrado"]
     assert "analisis_triz" not in app.session_state
+    assert not app.get("download_button")
+
+
+def test_lean_se_guarda_y_complementa_las_vias_triz():
+    app = abrir_dialogo()
+    app.text_area[0].set_value("Reducir las esperas en un proceso")
+    app.checkbox(key="via_problema_generico").check()
+    app.checkbox(key="incluir_lean_triz").check()
+    app.button[-1].click().run()
+    assert not app.exception
+    seleccion = app.session_state["seleccion_problema"]
+    assert seleccion["incluir_lean"]
+    assert not app.get("download_button")
+
+    app = AppTest.from_file(str(APP), default_timeout=30)
+    app.session_state["seleccion_problema"] = seleccion
+    app.run()
+    with patch.object(agente_triz, "AgenteTRIZ", AgenteTRIZSimulado):
+        app.button(key="generar_analisis_triz").click().run()
+    assert not app.exception
+    prompt = app.session_state["prompt_triz_prueba"]
+    assert "Elevar el problema específico" in prompt
+    assert "recomendaciones de Lean Production" in prompt
+    assert "piloto reversible con medición antes y después" in prompt
+
+
+@pytest.mark.parametrize(
+    ("extension", "nombre", "mime", "archivo_interno"),
+    [
+        (".pdf", "PDF", "application/pdf", None),
+        (".docx", "Word", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "word/document.xml"),
+        (".xlsx", "Excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xl/worksheets/sheet1.xml"),
+    ],
+)
+def test_descarga_resultado_web(extension, nombre, mime, archivo_interno):
+    app = abrir_app_con_agente_simulado()
+    selector = app.selectbox(key="formato_exportacion_triz")
+    assert selector.options == ["PDF", "Word", "Excel"]
+    with patch.object(st, "download_button", wraps=st.download_button) as descargar:
+        selector.select(extension).run()
+    assert not app.exception
+    descargar.assert_called_once()
+    kwargs = descargar.call_args.kwargs
+    assert descargar.call_args.args == (f"Descargar análisis en {nombre}",)
+    assert kwargs["file_name"] == f"Analisis_TRIZ{extension}"
+    assert kwargs["mime"] == mime
+    assert kwargs["on_click"] == "ignore"
+    if archivo_interno is None:
+        assert kwargs["data"].startswith(b"%PDF-")
+    else:
+        with ZipFile(BytesIO(kwargs["data"])) as documento:
+            assert b"Alternativa TRIZ para validar." in documento.read(archivo_interno)
+
+
+def test_fallo_de_nueva_consulta_conserva_el_analisis_exportable():
+    app = abrir_app_con_agente_simulado()
+    app.session_state["error_triz_prueba"] = True
+    with patch.object(agente_triz, "AgenteTRIZ", AgenteTRIZSimulado):
+        app.button(key="generar_analisis_triz").click().run()
+    assert not app.exception
+    assert any("error simulado" in item.value for item in app.error)
+    assert app.session_state["analisis_triz"] == "Alternativa TRIZ para validar."
+    assert len(app.get("download_button")) == 1
 
 
 def test_dialogo_libre_no_exige_triz_y_conserva_historial():

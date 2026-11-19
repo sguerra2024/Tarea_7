@@ -1,6 +1,7 @@
 import json
 import sys
 from pathlib import Path
+from tempfile import TemporaryDirectory
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -11,6 +12,7 @@ if str(PACKAGE_SOURCE) not in sys.path:
     sys.path.insert(0, str(PACKAGE_SOURCE))
 
 from agente_triz import AgenteTRIZ, construir_prompt_solucion
+from agente_triz.exportacion import FORMATOS, exportar_analisis
 from agente_triz.principios import DESCRIPCIONES_PRINCIPIOS, PRINCIPIOS_INVENTIVOS
 from agente_triz.vias import VIAS_SOLUCION
 
@@ -32,6 +34,43 @@ AYUDA_CONTRADICCIONES = (
     "Identifica qué quieres mejorar y qué se deteriora. La matriz clásica "
     "sugiere principios inventivos para el par seleccionado."
 )
+SOLICITUD_LEAN = (
+    "Complementa las vías TRIZ seleccionadas con recomendaciones de Lean "
+    "Production. Distingue hipótesis de desperdicio de hechos observados y "
+    "propón un piloto reversible con medición antes y después: tiempo de "
+    "ciclo, retrabajo o calidad, según corresponda. No presupongas fallas "
+    "ni garantices ahorros sin evidencia."
+)
+MIME_EXPORTACION = {
+    ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+
+
+def mostrar_exportacion(analisis: str) -> None:
+    extension = st.selectbox(
+        "Formato de exportación",
+        list(FORMATOS),
+        format_func=FORMATOS.__getitem__,
+        key="formato_exportacion_triz",
+    )
+    nombre = f"Analisis_TRIZ{extension}"
+    try:
+        with TemporaryDirectory() as directorio:
+            ruta = Path(directorio) / nombre
+            exportar_analisis(ruta, analisis)
+            contenido = ruta.read_bytes()
+    except (ImportError, OSError, ValueError):
+        st.error(f"No se pudo preparar la descarga en {FORMATOS[extension]}. El análisis sigue disponible.")
+        return
+    st.download_button(
+        f"Descargar análisis en {FORMATOS[extension]}",
+        data=contenido,
+        file_name=nombre,
+        mime=MIME_EXPORTACION[extension],
+        on_click="ignore",
+    )
 
 
 @st.cache_data
@@ -178,6 +217,12 @@ def configurar_problema():
                         placeholder="Por ejemplo: transportar, enfriar o reducir desperdicios.",
                     )
                     st.markdown(f"[Production Inspiration]({ENLACE_INSPIRACION})")
+            incluir_lean = st.checkbox(
+                "Incluir recomendaciones de Lean Production",
+                value=seleccion.get("incluir_lean", False),
+                key="incluir_lean_triz",
+                help="Complementa las vías TRIZ con ideas para reducir esperas, desperdicio o retrabajo.",
+            )
         else:
             st.write(
                 "Conversa directamente con el agente. No necesitas elegir vías "
@@ -197,6 +242,7 @@ def configurar_problema():
             "tipo": tipo if not es_general else "",
             "descripcion": descripcion.strip() if not es_general else "",
             "vias": vias if not es_general else [],
+            "incluir_lean": incluir_lean if not es_general else False,
             "accion_mejorar": accion_mejorar.strip() if not es_general else "",
             "parametro_mejorar": parametro_mejorar if not es_general else None,
             "parametro_perjudicado": (
@@ -305,11 +351,12 @@ if "seleccion_problema" in st.session_state:
                 "mejoran y empeoran, y consultar la matriz de contradicciones."
             )
         st.caption(
-            "Al solicitar el análisis, el problema y las vías seleccionadas se "
-            "enviarán a OpenRouter."
+            "Al solicitar el análisis, el problema, las vías seleccionadas y "
+            "la solicitud de recomendaciones Lean (si se seleccionó) se enviarán a OpenRouter."
         )
+        if seleccion.get("incluir_lean"):
+            st.caption("El análisis incluirá recomendaciones de Lean Production.")
         if st.button("Generar análisis TRIZ", key="generar_analisis_triz"):
-            st.session_state.pop("analisis_triz", None)
             problema = (
                 f"Tipo de problema: {seleccion['tipo']}\n"
                 f"Descripción: {seleccion['descripcion']}"
@@ -359,6 +406,8 @@ if "seleccion_problema" in st.session_state:
                 vias_seleccionadas=seleccion["vias"],
                 principios_activos=identificadores_principios,
             )
+            if seleccion.get("incluir_lean"):
+                prompt += "\n\n" + SOLICITUD_LEAN
             agente = None
             try:
                 with st.spinner("Analizando el problema con enfoque TRIZ..."):
@@ -367,7 +416,7 @@ if "seleccion_problema" in st.session_state:
             except RuntimeError as exc:
                 st.error(f"No se pudo generar el análisis TRIZ: {exc}")
             else:
-                if respuesta:
+                if respuesta and respuesta.strip():
                     st.session_state["analisis_triz"] = respuesta
                 else:
                     st.warning("El agente no devolvió una respuesta. Inténtalo de nuevo.")
@@ -378,6 +427,7 @@ if "seleccion_problema" in st.session_state:
         if st.session_state.get("analisis_triz"):
             st.markdown("### Análisis TRIZ")
             st.markdown(st.session_state["analisis_triz"])
+            mostrar_exportacion(st.session_state["analisis_triz"])
 
 st.caption(
     "Production Inspiration se abre en otra pestaña. "

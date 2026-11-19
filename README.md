@@ -50,7 +50,13 @@ se desea mejorar y el que resulta perjudicado. La matriz clásica muestra los
 principios inventivos recomendados y sus descripciones, y los incorpora al
 prompt del agente. Si la matriz no recomienda principios para un par, lo indica
 sin afirmar que la contradicción no tenga solución.
-La respuesta se muestra en la página y se conserva durante la sesión. Para
+En el formulario, marca **Incluir recomendaciones de Lean Production** para
+complementar las vías TRIZ con hipótesis de mejora y un piloto reversible
+que se pueda medir antes y después.
+La respuesta se muestra en la página y se conserva durante la sesión.
+Debajo del análisis, elige PDF, Word o Excel en **Formato de exportación**
+y pulsa **Descargar análisis** para guardar el archivo desde el navegador.
+La descarga no vuelve a consultar a OpenRouter. Para
 usarlo, configura `OPENROUTER_API_KEY`; `OPENROUTER_MODEL` es opcional. La
 dependencia `openai` se instala junto con `requirements.txt`.
 El formulario también permite elegir "Diálogo libre con agente IA (sin TRIZ)".
