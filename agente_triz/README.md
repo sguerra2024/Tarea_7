@@ -101,6 +101,14 @@ conflicto y conducir a alternativas comprobables.
 La clase `AgenteAnalista` se conserva como alias de compatibilidad. Para nuevas
 integraciones se recomienda importar `AgenteTRIZ`.
 
+### Recomendaciones Lean Production
+
+Pide recomendaciones Lean al describir el problema. El agente también
+incorpora Lean cuando la consulta trata sobre flujo, desperdicio o variabilidad
+operativa. Lean complementa las vías TRIZ existentes: propone herramientas
+según el problema, distingue lo observado de las hipótesis y sugiere un piloto
+con un indicador antes y después. No estima ahorros sin evidencia.
+
 ## Diálogo de exploración de soluciones
 
 El paquete incluye un diálogo modal de escritorio Tkinter para enfocar el
